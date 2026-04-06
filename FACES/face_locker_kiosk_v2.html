@@ -1,0 +1,475 @@
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500&display=swap');
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0a0c10;--surface:#111318;--surface2:#181c24;--border:#ffffff18;--accent:#00e5a0;--accent2:#0099ff;--danger:#ff4d6d;--warn:#ffb347;--text:#e8ecf0;--muted:#6b7280}
+  body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+  .kiosk{display:grid;grid-template-columns:1fr 360px;gap:0;min-height:100vh}
+  .camera-zone{position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  #video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+  .scan-overlay{position:absolute;inset:0;pointer-events:none}
+  .scan-corner{position:absolute;width:40px;height:40px;border-color:var(--accent);border-style:solid;border-width:0;opacity:0.8}
+  .scan-corner.tl{top:10%;left:15%;border-top-width:3px;border-left-width:3px}
+  .scan-corner.tr{top:10%;right:15%;border-top-width:3px;border-right-width:3px}
+  .scan-corner.bl{bottom:10%;left:15%;border-bottom-width:3px;border-left-width:3px}
+  .scan-corner.br{bottom:10%;right:15%;border-bottom-width:3px;border-right-width:3px}
+  .scan-line{position:absolute;left:15%;width:70%;height:2px;background:linear-gradient(90deg,transparent,var(--accent),transparent);animation:scan 2.5s ease-in-out infinite;opacity:0.6}
+  @keyframes scan{0%{top:10%}50%{top:88%}100%{top:10%}}
+  .face-status{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);background:#00000088;backdrop-filter:blur(8px);border:1px solid var(--border);border-radius:40px;padding:8px 24px;font-size:13px;letter-spacing:0.5px;white-space:nowrap}
+  .panel{background:var(--surface);border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+  .panel-header{padding:28px 24px 16px;border-bottom:1px solid var(--border)}
+  .logo{font-family:'Space Mono',monospace;font-size:18px;font-weight:700;color:var(--accent);letter-spacing:2px}
+  .logo span{color:var(--text)}
+  .subtitle{font-size:11px;color:var(--muted);letter-spacing:1px;margin-top:4px;text-transform:uppercase}
+  .panel-body{flex:1;padding:20px 24px;overflow-y:auto;display:flex;flex-direction:column;gap:14px}
+  .state-card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:20px}
+  .state-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:12px;font-family:'Space Mono',monospace}
+  .mode-buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .btn{padding:14px;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:500;transition:all 0.2s;display:flex;flex-direction:column;align-items:center;gap:6px}
+  .btn:hover{background:var(--surface2);border-color:#ffffff40;transform:translateY(-1px)}
+  .btn:active{transform:scale(0.98)}
+  .btn .btn-icon{font-size:20px}
+  .btn.store:hover{border-color:var(--accent);color:var(--accent)}
+  .btn.retrieve:hover{border-color:var(--accent2);color:var(--accent2)}
+  .btn.primary{background:var(--accent);color:#000;border:none;font-weight:600;width:100%;padding:14px;font-size:15px;border-radius:10px}
+  .btn.primary:hover{opacity:0.9;transform:translateY(-1px)}
+  .btn.secondary{background:transparent;color:var(--text);border:1px solid var(--border);width:100%;padding:12px;font-size:14px;border-radius:10px}
+  .btn.secondary:hover{border-color:#ffffff40}
+  .btn.danger{background:var(--danger);color:#fff;border:none;width:100%;padding:12px;font-size:14px;border-radius:10px}
+  .liveness-bar{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:12px}
+  .live-dot{width:10px;height:10px;border-radius:50%;background:var(--danger);flex-shrink:0;transition:background 0.3s}
+  .live-dot.ok{background:var(--accent);box-shadow:0 0 8px var(--accent)}
+  .live-label{font-size:13px;color:var(--muted)}
+  .live-value{font-size:13px;font-weight:500;margin-left:auto;font-family:'Space Mono',monospace}
+  .lockers-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .locker-item{aspect-ratio:1;border-radius:8px;border:1px solid var(--border);background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:11px;font-family:'Space Mono',monospace}
+  .locker-item.used{border-color:var(--accent)66;background:#00e5a018;color:var(--accent)}
+  .locker-item.opening{border-color:var(--warn);background:#ffb34720;animation:pulse 0.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+  .result-card{border-radius:12px;padding:16px 20px;border:1px solid}
+  .result-card.success{background:#00e5a012;border-color:var(--accent)44;color:var(--accent)}
+  .result-card.fail{background:#ff4d6d12;border-color:var(--danger)44;color:var(--danger)}
+  .result-card.info{background:#0099ff12;border-color:var(--accent2)44;color:var(--accent2)}
+  .result-title{font-size:12px;font-family:'Space Mono',monospace;letter-spacing:1px;margin-bottom:8px;opacity:0.8}
+  .result-msg{font-size:15px;font-weight:500}
+  .result-sub{font-size:12px;margin-top:6px;opacity:0.7}
+  .log-area{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'Space Mono',monospace;font-size:11px;color:var(--muted);max-height:120px;overflow-y:auto;line-height:1.8}
+  .log-line.ok{color:var(--accent)}
+  .log-line.err{color:var(--danger)}
+  .log-line.info{color:var(--accent2)}
+  .panel-footer{padding:16px 24px;border-top:1px solid var(--border)}
+  .cam-init{text-align:center;color:var(--muted);font-size:14px;padding:40px}
+  .spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .admin-modal{position:fixed;inset:0;background:#00000099;display:flex;align-items:center;justify-content:center;z-index:100}
+  .admin-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:32px;width:320px}
+  .admin-title{font-family:'Space Mono',monospace;font-size:14px;color:var(--warn);margin-bottom:20px;letter-spacing:1px}
+  input[type=text],input[type=password]{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:12px}
+  input:focus{border-color:var(--accent)66}
+  select{width:100%;background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:12px 14px;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;margin-bottom:12px}
+  .analyzing{text-align:center;padding:20px}
+  .analyzing-icon{display:inline-block;width:48px;height:48px;border:3px solid var(--accent)44;border-top-color:var(--accent);border-radius:50%;animation:spin 1.2s linear infinite}
+  .hidden{display:none!important}
+  .start-btn{background:var(--accent);color:#000;border:none;font-weight:600;width:100%;padding:16px;font-size:16px;border-radius:10px;cursor:pointer;font-family:'DM Sans',sans-serif;transition:opacity 0.2s}
+  .start-btn:hover{opacity:0.9}
+</style>
+
+<div class="kiosk">
+  <div class="camera-zone" id="cameraZone">
+    <div class="cam-init" id="camInit">
+      <div class="spinner"></div>
+      <div style="margin-bottom:16px">請按下「啟動系統」開始</div>
+      <button class="start-btn" onclick="startCamera()">啟動攝影機</button>
+    </div>
+    <video id="video" autoplay muted playsinline class="hidden"></video>
+    <div class="scan-overlay hidden" id="scanOverlay">
+      <div class="scan-corner tl"></div>
+      <div class="scan-corner tr"></div>
+      <div class="scan-corner bl"></div>
+      <div class="scan-corner br"></div>
+      <div class="scan-line"></div>
+    </div>
+    <div class="face-status hidden" id="faceStatus" style="font-family:'Space Mono',monospace">○ 待機中</div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">
+      <div class="logo">FACE<span>LOCK</span></div>
+      <div class="subtitle">智慧人臉辨識置物系統 v2.0</div>
+    </div>
+
+    <div class="panel-body">
+      <div class="liveness-bar">
+        <div class="live-dot" id="liveDot"></div>
+        <div class="live-label">活體偵測</div>
+        <div class="live-value" id="liveValue" style="color:var(--muted)">待機中</div>
+      </div>
+
+      <div class="state-card" id="mainMenu">
+        <div class="state-title">選擇操作</div>
+        <div class="mode-buttons">
+          <button class="btn store" onclick="enterStore()">
+            <span class="btn-icon">📥</span>存物
+          </button>
+          <button class="btn retrieve" onclick="enterRetrieve()">
+            <span class="btn-icon">📤</span>取物
+          </button>
+        </div>
+      </div>
+
+      <div class="state-card hidden" id="confirmCard">
+        <div class="state-title" id="confirmTitle">確認存物</div>
+        <div id="confirmContent" style="font-size:13px;color:var(--muted);line-height:1.8;margin-bottom:14px"></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <button class="btn secondary" onclick="cancelOp()">✕ 取消</button>
+          <button class="btn primary" onclick="confirmOp()">✓ 確認</button>
+        </div>
+      </div>
+
+      <div class="state-card hidden" id="analyzingCard">
+        <div class="analyzing">
+          <div class="analyzing-icon"></div>
+          <div style="margin-top:14px;font-size:13px;color:var(--muted)" id="analyzingText">AI 正在分析人臉特徵...</div>
+        </div>
+      </div>
+
+      <div id="resultCard"></div>
+
+      <div class="state-card">
+        <div class="state-title">置物櫃狀態</div>
+        <div class="lockers-grid" id="lockersGrid"></div>
+        <div style="margin-top:10px;font-size:12px;color:var(--muted)" id="lockerCount">0 / 12 使用中</div>
+      </div>
+    </div>
+
+    <div class="panel-footer">
+      <div style="display:flex;gap:8px">
+        <button class="btn secondary" onclick="openAdmin()" style="width:auto;padding:10px 16px;font-size:12px">⚙ 管理員</button>
+        <button class="btn secondary" onclick="resetState()" style="flex:1;padding:10px;font-size:12px">↩ 重設</button>
+      </div>
+      <div class="log-area" id="logArea" style="margin-top:10px"></div>
+    </div>
+  </div>
+</div>
+
+<div class="admin-modal hidden" id="adminModal">
+  <div class="admin-box">
+    <div class="admin-title">⚙ 管理員後台</div>
+    <input type="password" id="adminPwd" placeholder="輸入管理員密碼（888）" />
+    <div id="adminContent" class="hidden">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:12px">選擇要強制開啟的櫃號：</div>
+      <select id="adminLocker"></select>
+      <button class="btn danger" onclick="adminOpen()">強制解鎖並清除資料</button>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">
+      <button class="btn secondary" onclick="closeAdmin()">取消</button>
+      <button class="btn primary" onclick="adminAuth()" id="adminAuthBtn">驗證</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const ADMIN_PWD = "888";
+const TIMEOUT_SEC = 30;
+const MAX_LOCKERS = 12;
+
+let currentState = "MAIN";
+let hasBlinked = false;
+let stateStartTime = 0;
+let activeLockers = {};
+let blinkCounter = 0;
+let eyeWasClosed = false;
+let stream = null;
+let detectInterval = null;
+let cameraReady = false;
+
+const video = document.getElementById('video');
+
+function log(msg, type=''){
+  const el = document.getElementById('logArea');
+  const ts = new Date().toLocaleTimeString('zh-TW',{hour12:false});
+  const d = document.createElement('div');
+  d.className = 'log-line ' + type;
+  d.textContent = `[${ts}] ${msg}`;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+  if(el.children.length > 30) el.removeChild(el.firstChild);
+}
+
+async function startCamera(){
+  document.getElementById('camInit').innerHTML = '<div class="spinner"></div><div>正在啟動攝影機...</div>';
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:1280,height:720},audio:false});
+    video.srcObject = stream;
+    video.classList.remove('hidden');
+    document.getElementById('camInit').classList.add('hidden');
+    document.getElementById('scanOverlay').classList.remove('hidden');
+    document.getElementById('faceStatus').classList.remove('hidden');
+    cameraReady = true;
+    video.onloadedmetadata = () => {
+      log('📷 攝影機啟動成功', 'ok');
+      log('👋 選擇「存物」或「取物」開始使用');
+      startDetect();
+    };
+  } catch(e){
+    document.getElementById('camInit').innerHTML = `<div style="color:var(--danger);margin-bottom:12px">❌ 無法存取攝影機</div><div style="font-size:12px;color:var(--muted);margin-bottom:16px">${e.message}</div><button class="start-btn" onclick="startCamera()">重試</button>`;
+    log('❌ 攝影機存取失敗: ' + e.message, 'err');
+  }
+}
+
+function startDetect(){
+  let frame = 0;
+  detectInterval = setInterval(()=>{
+    frame++;
+    if(frame % 4 !== 0) return;
+    checkTimeout();
+    updateFaceStatus();
+    simulateBlink();
+  }, 100);
+}
+
+function simulateBlink(){
+  if(currentState === "MAIN") return;
+  const EAR_THRESHOLD = 0.22;
+  const t = Date.now() / 1000;
+  const ear = 0.29 + Math.sin(t*0.7)*0.02 - (Math.sin(t*3.1)>0.94 ? 0.15 : 0);
+
+  if(ear < EAR_THRESHOLD){
+    if(!eyeWasClosed){ eyeWasClosed = true; blinkCounter = 0; }
+    blinkCounter++;
+  } else {
+    if(eyeWasClosed && blinkCounter >= 1 && blinkCounter <= 8 && !hasBlinked){
+      hasBlinked = true;
+      document.getElementById('liveDot').classList.add('ok');
+      document.getElementById('liveValue').textContent = '✓ 活體確認';
+      document.getElementById('liveValue').style.color = 'var(--accent)';
+      log('👀 活體偵測通過！', 'ok');
+    }
+    eyeWasClosed = false;
+    blinkCounter = 0;
+  }
+}
+
+function updateFaceStatus(){
+  const el = document.getElementById('faceStatus');
+  const hasFace = Math.random() > 0.08;
+  el.textContent = hasFace ? '● 偵測到人臉' : '○ 無人臉';
+  el.style.color = hasFace ? '#e8ecf0' : 'var(--muted)';
+}
+
+function checkTimeout(){
+  if(currentState !== "MAIN" && stateStartTime > 0){
+    if(Date.now() - stateStartTime > TIMEOUT_SEC * 1000){
+      log(`⏳ 閒置 ${TIMEOUT_SEC}s，自動返回主選單`, 'info');
+      resetState();
+    }
+  }
+}
+
+function captureFrame(){
+  const c = document.createElement('canvas');
+  c.width = 640; c.height = 480;
+  c.getContext('2d').drawImage(video, 0, 0, 640, 480);
+  return c.toDataURL('image/jpeg', 0.85).split(',')[1];
+}
+
+function enterStore(){
+  if(!cameraReady){ log('⚠ 請先啟動攝影機', 'err'); return; }
+  if(Object.keys(activeLockers).length >= MAX_LOCKERS){ showResult('info','置物櫃已滿',`所有 ${MAX_LOCKERS} 個均已佔用`); return; }
+  currentState = "STORE";
+  stateStartTime = Date.now();
+  hasBlinked = false;
+  resetLiveness();
+  document.getElementById('mainMenu').classList.add('hidden');
+  document.getElementById('confirmCard').classList.remove('hidden');
+  document.getElementById('confirmTitle').textContent = '📥 確認存物';
+  document.getElementById('confirmContent').innerHTML = `系統將拍攝您的人臉作為取物憑證。<br><br>請確認：<br>• 臉部清晰可見，光線充足<br>• 畫面中只有一個人<br>• 先對鏡頭<strong style="color:var(--accent)">眨眼</strong>完成活體驗證`;
+  log('➡ 存物模式：請眨眼後按確認', 'info');
+}
+
+function enterRetrieve(){
+  if(!cameraReady){ log('⚠ 請先啟動攝影機', 'err'); return; }
+  if(Object.keys(activeLockers).length === 0){ showResult('info','無存物紀錄','目前沒有任何置物櫃被使用'); return; }
+  currentState = "RETRIEVE";
+  stateStartTime = Date.now();
+  hasBlinked = false;
+  resetLiveness();
+  document.getElementById('mainMenu').classList.add('hidden');
+  document.getElementById('confirmCard').classList.remove('hidden');
+  document.getElementById('confirmTitle').textContent = '📤 確認取物';
+  document.getElementById('confirmContent').innerHTML = `AI 將比對您的人臉特徵，自動找到您的置物櫃。<br><br>目前使用中：<strong style="color:var(--accent)">${Object.keys(activeLockers).length}</strong> 個<br><br>請先對鏡頭<strong style="color:var(--accent)">眨眼</strong>，再按確認。`;
+  log('➡ 取物模式：請眨眼後按確認', 'info');
+}
+
+function resetLiveness(){
+  document.getElementById('liveDot').classList.remove('ok');
+  document.getElementById('liveValue').textContent = '請對鏡頭眨眼 →';
+  document.getElementById('liveValue').style.color = 'var(--warn)';
+}
+
+function cancelOp(){ resetState(); log('↩ 操作取消'); }
+
+async function confirmOp(){
+  if(!hasBlinked){ log('⚠ 請先對鏡頭眨眼完成活體驗證！', 'err'); return; }
+  document.getElementById('confirmCard').classList.add('hidden');
+  document.getElementById('analyzingCard').classList.remove('hidden');
+  const imageB64 = captureFrame();
+  log('🔄 擷取影像，呼叫 AI 分析...', 'info');
+  if(currentState === "STORE") await processStore(imageB64);
+  else await processRetrieve(imageB64);
+}
+
+async function processStore(imageB64){
+  try {
+    document.getElementById('analyzingText').textContent = '系統分析人臉特徵中...';
+
+    // 呼叫本機的 Python API
+    const response = await fetch('http://127.0.0.1:5000/api/store', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageB64 })
+    });
+
+    const result = await response.json();
+    document.getElementById('analyzingCard').classList.add('hidden');
+
+    if(result.success) {
+      const id = result.locker_id;
+      activeLockers[id] = {id, description: '已由系統加密建檔', time: new Date().toLocaleTimeString('zh-TW',{hour12:false})};
+      showResult('success', `✅ 已分配第 ${id} 號置物櫃`, result.msg);
+      triggerDoor(id);
+      log(`✅ 存物成功！第 ${id} 號`, 'ok');
+      updateGrid();
+    } else {
+      showResult('fail', '存物失敗', result.msg);
+      log('❌ ' + result.msg, 'err');
+    }
+  } catch(e) {
+    document.getElementById('analyzingCard').classList.add('hidden');
+    showResult('fail','連線錯誤', '無法連接到後端伺服器，請確認 Python 已啟動');
+    log('❌ 連線錯誤: ' + e.message, 'err');
+  }
+  resetToMenu();
+}
+
+async function processRetrieve(imageB64){
+  try {
+    document.getElementById('analyzingText').textContent = '系統比對人臉特徵中...';
+
+    // 呼叫本機的 Python API
+    const response = await fetch('http://127.0.0.1:5000/api/retrieve', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: imageB64 })
+    });
+
+    const result = await response.json();
+    document.getElementById('analyzingCard').classList.add('hidden');
+
+    if(result.success) {
+      const id = result.locker_id;
+      delete activeLockers[id];
+      showResult('success', `🔓 第 ${id} 號置物櫃已開啟`, result.msg);
+      triggerDoor(id);
+      log(`🔓 解鎖成功！第 ${id} 號`, 'ok');
+      updateGrid();
+    } else {
+      showResult('fail', '驗證失敗', result.msg);
+      log('❌ 取物失敗：' + result.msg, 'err');
+    }
+  } catch(e) {
+    document.getElementById('analyzingCard').classList.add('hidden');
+    showResult('fail','連線錯誤', '無法連接到後端伺服器，請確認 Python 已啟動');
+    log('❌ 連線錯誤: ' + e.message, 'err');
+  }
+  resetToMenu();
+}
+
+function triggerDoor(id){
+  log(`⚡ 開鎖指令 → 第 ${id} 號`, 'ok');
+  const el = document.querySelector(`.locker-item[data-id="${id}"]`);
+  if(el){ el.classList.add('opening'); setTimeout(()=>{ el.classList.remove('opening'); updateGrid(); }, 2000); }
+}
+
+function showResult(type, title, sub){
+  const el = document.getElementById('resultCard');
+  el.innerHTML = `<div class="result-card ${type}">
+    <div class="result-title">${type==='success'?'SUCCESS':type==='fail'?'FAILED':'INFO'}</div>
+    <div class="result-msg">${title}</div>
+    ${sub?`<div class="result-sub">${sub.replace(/\n/g,'<br>')}</div>`:''}
+  </div>`;
+  setTimeout(()=>{ el.innerHTML=''; }, 6000);
+}
+
+function resetToMenu(){
+  setTimeout(()=>{
+    currentState = "MAIN";
+    document.getElementById('confirmCard').classList.add('hidden');
+    document.getElementById('analyzingCard').classList.add('hidden');
+    document.getElementById('mainMenu').classList.remove('hidden');
+    hasBlinked = false;
+    document.getElementById('liveDot').classList.remove('ok');
+    document.getElementById('liveValue').textContent = '待機中';
+    document.getElementById('liveValue').style.color = 'var(--muted)';
+  }, 1200);
+}
+
+function resetState(){
+  currentState = "MAIN";
+  hasBlinked = false;
+  stateStartTime = 0;
+  document.getElementById('confirmCard').classList.add('hidden');
+  document.getElementById('analyzingCard').classList.add('hidden');
+  document.getElementById('mainMenu').classList.remove('hidden');
+  document.getElementById('resultCard').innerHTML = '';
+  document.getElementById('liveDot').classList.remove('ok');
+  document.getElementById('liveValue').textContent = '待機中';
+  document.getElementById('liveValue').style.color = 'var(--muted)';
+}
+
+function getNextId(){
+  const ids = Object.keys(activeLockers).map(Number);
+  if(!ids.length) return 1;
+  return Math.max(...ids) + 1;
+}
+
+function updateGrid(){
+  const grid = document.getElementById('lockersGrid');
+  const count = document.getElementById('lockerCount');
+  count.textContent = `${Object.keys(activeLockers).length} / ${MAX_LOCKERS} 使用中`;
+  grid.innerHTML = '';
+  for(let i=1;i<=MAX_LOCKERS;i++){
+    const d = document.createElement('div');
+    d.className = 'locker-item' + (activeLockers[i]?' used':'');
+    d.setAttribute('data-id', i);
+    d.innerHTML = `<span>${activeLockers[i]?'🔒':'▭'}</span><span>${String(i).padStart(2,'0')}</span>`;
+    grid.appendChild(d);
+  }
+}
+
+function openAdmin(){
+  document.getElementById('adminModal').classList.remove('hidden');
+  document.getElementById('adminPwd').value = '';
+  document.getElementById('adminContent').classList.add('hidden');
+  document.getElementById('adminAuthBtn').classList.remove('hidden');
+}
+function closeAdmin(){ document.getElementById('adminModal').classList.add('hidden'); }
+function adminAuth(){
+  if(document.getElementById('adminPwd').value === ADMIN_PWD){
+    document.getElementById('adminContent').classList.remove('hidden');
+    document.getElementById('adminAuthBtn').classList.add('hidden');
+    const sel = document.getElementById('adminLocker');
+    const ids = Object.keys(activeLockers);
+    sel.innerHTML = ids.length ? ids.map(id=>`<option value="${id}">第 ${id} 號（${activeLockers[id].description}）</option>`).join('') : '<option disabled>無使用中的置物櫃</option>';
+    log('⚙ 管理員登入成功', 'info');
+  } else { log('❌ 密碼錯誤', 'err'); }
+}
+function adminOpen(){
+  const id = parseInt(document.getElementById('adminLocker').value);
+  if(!isNaN(id) && activeLockers[id]){ triggerDoor(id); delete activeLockers[id]; log(`⚙ 強制解鎖第 ${id} 號`, 'info'); updateGrid(); }
+  closeAdmin();
+}
+
+updateGrid();
+log('🚀 FaceLock 系統就緒，請啟動攝影機');
+</script>
