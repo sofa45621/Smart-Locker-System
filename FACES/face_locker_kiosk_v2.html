@@ -335,12 +335,12 @@ async function processStore(imageB64){
 
     if(result.success) {
       const id = result.locker_id;
-      activeLockers[id] = {id, description: '已由系統加密建檔', time: new Date().toLocaleTimeString('zh-TW',{hour12:false})};
+      // 刪除原本的 activeLockers[id] = ... 那行
       showResult('success', `✅ 已分配第 ${id} 號置物櫃`, result.msg);
       triggerDoor(id);
       log(`✅ 存物成功！第 ${id} 號`, 'ok');
-      updateGrid();
-    } else {
+      syncServerStatus(); // 🆕 直接跟 Python 要最新資料
+    }else {
       showResult('fail', '存物失敗', result.msg);
       log('❌ ' + result.msg, 'err');
     }
@@ -351,7 +351,32 @@ async function processStore(imageB64){
   }
   resetToMenu();
 }
+// 🆕 新增：從 Python 獲取真實狀態，解決 F5 失憶問題
+async function syncServerStatus() {
+  try {
+    const response = await fetch('http://127.0.0.1:5000/api/status');
+    const data = await response.json();
 
+    // 清空本地假記憶，用 Python 給的真實數據覆蓋
+    activeLockers = {};
+    data.forEach(locker => {
+      if (locker.occupied) {
+        activeLockers[locker.id] = {
+          id: locker.id,
+          // 把 Python 算好的已使用時間顯示在畫面上！
+          description: `已佔用 ${locker.duration_min} 分鐘`,
+          time: locker.start_time
+        };
+      }
+    });
+    updateGrid(); // 刷新畫面格子
+  } catch(e) {
+    console.log("⚠ 無法連線到狀態 API，請確認 Python 是否啟動", e);
+  }
+}
+
+// 設定每 5 秒自動跟 Python 對答案一次
+setInterval(syncServerStatus, 5000);
 async function processRetrieve(imageB64){
   try {
     document.getElementById('analyzingText').textContent = '系統比對人臉特徵中...';
@@ -368,12 +393,12 @@ async function processRetrieve(imageB64){
 
     if(result.success) {
       const id = result.locker_id;
-      delete activeLockers[id];
+      // 刪除原本的 delete activeLockers[id]; 那行
       showResult('success', `🔓 第 ${id} 號置物櫃已開啟`, result.msg);
       triggerDoor(id);
       log(`🔓 解鎖成功！第 ${id} 號`, 'ok');
-      updateGrid();
-    } else {
+      syncServerStatus(); // 🆕 直接跟 Python 要最新資料
+    }else {
       showResult('fail', '驗證失敗', result.msg);
       log('❌ 取物失敗：' + result.msg, 'err');
     }
@@ -455,21 +480,61 @@ function openAdmin(){
 }
 function closeAdmin(){ document.getElementById('adminModal').classList.add('hidden'); }
 function adminAuth(){
-  if(document.getElementById('adminPwd').value === ADMIN_PWD){
+  const pwd = document.getElementById('adminPwd').value;
+  if(pwd === ADMIN_PWD){
     document.getElementById('adminContent').classList.remove('hidden');
     document.getElementById('adminAuthBtn').classList.add('hidden');
+
+    // 重新抓取目前使用中的櫃子
     const sel = document.getElementById('adminLocker');
-    const ids = Object.keys(activeLockers);
-    sel.innerHTML = ids.length ? ids.map(id=>`<option value="${id}">第 ${id} 號（${activeLockers[id].description}）</option>`).join('') : '<option disabled>無使用中的置物櫃</option>';
+    const ids = Object.keys(activeLockers); // 這會抓到我們剛剛同步回來的真實 id
+
+    if(ids.length > 0) {
+      sel.innerHTML = ids.map(id =>
+        `<option value="${id}">第 ${id} 號櫃 (${activeLockers[id].description})</option>`
+      ).join('');
+    } else {
+      sel.innerHTML = '<option value="">目前無使用中的置物櫃</option>';
+    }
     log('⚙ 管理員登入成功', 'info');
-  } else { log('❌ 密碼錯誤', 'err'); }
+  } else {
+    log('❌ 密碼錯誤', 'err');
+    alert("密碼錯誤！");
+  }
 }
-function adminOpen(){
+// 🆕 終極版：管理員強制開鎖 (會真正通知 Python 刪除資料並讓 ESP32 開門)
+async function adminOpen(){
   const id = parseInt(document.getElementById('adminLocker').value);
-  if(!isNaN(id) && activeLockers[id]){ triggerDoor(id); delete activeLockers[id]; log(`⚙ 強制解鎖第 ${id} 號`, 'info'); updateGrid(); }
+  const pwd = document.getElementById('adminPwd').value;
+
+  if(!isNaN(id) && id !== 0){
+    try {
+      log(`⚙ 請求管理員強制開鎖：第 ${id} 號...`, 'info');
+
+      const response = await fetch('http://127.0.0.1:5000/api/admin/clear', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ locker_id: id, password: pwd })
+      });
+
+      const result = await response.json();
+
+      if(result.success) {
+        showResult('success', '管理員強制解鎖成功', result.msg);
+        log(`⚙ [管理員] ${result.msg}`, 'ok');
+        // 成功後立刻同步一次狀態
+        syncServerStatus();
+      } else {
+        showResult('fail', '強制解鎖失敗', result.msg);
+        log(`❌ 管理員操作失敗：${result.msg}`, 'err');
+      }
+    } catch (e) {
+      showResult('fail', '連線錯誤', '無法連線到後端伺服器');
+      log('❌ 無法連線到伺服器執行管理員操作', 'err');
+    }
+  }
   closeAdmin();
 }
-
 updateGrid();
 log('🚀 FaceLock 系統就緒，請啟動攝影機');
 </script>
